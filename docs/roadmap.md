@@ -7,14 +7,15 @@ This file is the source of truth for what "done" means each week.
 
 **Goal:** the copilot can sign and broadcast one transaction on Injective testnet.
 
-- [ ] Verify `pyinjective` existence on PyPI. If present and usable → native Python path. If not → MCP server path.
-- [ ] MCP server (`InjectiveLabs/mcp-server`) reachable from Python (stdio or HTTP transport).
+- [x] Verify `pyinjective` existence on PyPI. ✅ Confirmed: real package, v1.16.0 released 2026-06-29. Native Python path it is.
+- [x] `injective-py` installed and importable. ✅ `pyinjective.async_client_v2.AsyncClient` + `MsgBroadcasterWithPk` work.
 - [ ] Wallet on testnet, funded from the Injective faucet.
-- [ ] First signed testnet tx — minimum-viable: bank `send` of 1 test-INJ.
-- [ ] `Intent` / `Plan` / `PlanStep` schemas frozen (Pydantic) — week-2 planner depends on these.
-- [ ] `.env` flow works: `uv run copilot plan "send 1 INJ to 0x..."` prints a plan, doesn't crash.
+- [ ] First signed testnet tx — minimum-viable: bank `send` of 0.001 test-INJ.
+- [x] `Intent` / `Plan` / `PlanStep` schemas frozen (Pydantic) — week-2 planner depends on these.
+- [x] `.env` flow works: `uv run copilot plan "send 0.001 INJ to inj1..."` parses, plans, and prints the summary.
+- [x] `scripts/send.py` provides a developer-facing escape hatch with dry-run-by-default and a `--broadcast` flag.
 
-**Exit criterion:** a green test that builds an Intent, runs it through `plan()` → `simulate()`, and prints the summary.
+**Exit criterion:** a green test that builds an Intent, runs it through `plan()` → `simulate()`, and prints the summary. Plus: a real testnet bank-send tx hash captured from a funded wallet.
 
 ## Week 2 — Planner (7/7 – 7/13)
 

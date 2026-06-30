@@ -17,17 +17,12 @@
 │                   Executor                                       │
 │                       │                                          │
 │                       ▼                                          │
-│               ┌───────────────┐                                  │
-│               │  MCP Client   │                                  │
-│               └───────┬───────┘                                  │
+│           ┌────────────────────────┐                             │
+│           │  InjectiveClient       │  ← only module that         │
+│           │  (pyinjective wrapper) │     knows about pyinjective │
+│           └───────────┬────────────┘                             │
 └───────────────────────┼──────────────────────────────────────────┘
-                        │ MCP protocol (stdio / HTTP)
-                        ▼
-               ┌───────────────────┐
-               │ InjectiveLabs/    │
-               │ mcp-server (Node) │
-               └────────┬──────────┘
-                        │ Cosmos SDK tx
+                        │ grpc (Cosmos SDK tx)
                         ▼
                ┌───────────────────┐
                │  Injective chain  │
@@ -41,26 +36,26 @@
                 └─────────────────────────────────┘
 ```
 
-## Decision: MCP server vs native Python SDK
+## Decision: native `injective-py` (chosen) vs MCP server vs TS agent-sdk
 
 | Option | Pros | Cons | Verdict |
 |---|---|---|---|
-| **MCP server** (chosen) | Official, language-agnostic, supports both trading + identity tools, documented in Injective's AI dev docs | Adds a Node subprocess hop; one more process to manage | **Primary path.** Proven, low-risk for a 4-week hackathon. |
-| `pyinjective` (native Python) | No subprocess, idiomatic Python | Existence on PyPI not verified at time of writing; if real, maturity unknown | **Fallback.** Verify in week 1; if usable, can replace MCP hop with zero changes to planner/intent layers. |
-| `injective-agent-sdk` (TypeScript) | First-class ERC-8004 identity support | TypeScript-only; identity-only (no trading) | **Identity sidecar only.** One-shot CLI call in week 3. |
+| **`injective-py`** (InjectiveLabs/sdk-python) | Official, native Python, v1.16 released 2026-06-29 (active), full module coverage (bank/exchange/perp/futures/wasm), no subprocess | Heavy proto-based deps (grpcio, protobuf, web3) | **Primary path.** Verified installable and importable on this box. |
+| `InjectiveLabs/mcp-server` | Language-agnostic | Adds a Node subprocess hop; partial feature parity | **Dropped** for trading. Could be revisited if the copilot ever needs to expose its own tools to other agents. |
+| `@injective/agent-sdk` (TypeScript) | First-class ERC-8004 identity support | TypeScript-only; identity-only (no trading) | **Identity sidecar only.** One-shot CLI call in week 3. |
 
-The boundary that makes this swappable: the planner and intent layers speak `Intent` / `Plan` / `PlanStep` (Pydantic), not MCP types. The `MCPClient` is the only module that knows about MCP; replacing it with a `PyInjectiveClient` of the same shape is a one-module change.
+The boundary that makes this swappable: the planner and intent layers speak `Intent` / `Plan` / `PlanStep` (Pydantic), not pyinjective types. `InjectiveClient` is the only module that knows about pyinjective; replacing it with another implementation of the same surface is a one-module change.
 
 ## Decision: human-in-the-loop is non-negotiable
 
 The copilot **never** auto-executes a plan. Every plan goes through:
 
-1. Simulation (dry-run against RPC).
+1. Simulation (dry-run against RPC — week 2).
 2. Plain-language summary in the user's language.
 3. Explicit `y/N` prompt.
 4. Only then: execution.
 
-There is no `--yes` flag and no auto-approval path. This is the product's core trust promise and the main reason a user would pick it over a raw wallet.
+There is no `--yes` flag on the agent and no auto-approval path. The standalone `scripts/send.py` does have `--broadcast` (because it's a developer-facing escape hatch), but it still refuses amounts > 1 INJ without an additional `--i-know-this-is-real-money` flag. This is the product's core trust promise.
 
 ## Decision: local LLM by default
 
@@ -70,11 +65,13 @@ Default `LLM_PROVIDER=ollama` with `qwen2.5:latest`:
 - Sufficient quality for the 5 reference intents.
 - Cloud (OpenAI / Anthropic) is an optional extra — opt-in via env, never mandatory.
 
-This keeps the copilot runnable by anyone, on a laptop, without an API key — a real UX win for the demo.
-
 ## Trust boundaries
 
-- **Secrets** (mnemonic, private keys, API JWTs) live only in `.env`, loaded via `python-dotenv`, never logged, never serialized into plans or receipts.
+- **Secrets** (`INJECTIVE_PRIVATE_KEY`, API JWTs) live only in `.env`, loaded via `python-dotenv`, never logged, never serialized into plans or receipts. `InjectiveClient.__repr__` redacts the key — it only prints the public address.
 - **LLM output** is validated at the boundary by Pydantic — an LLM cannot produce a plan that bypasses the schema.
 - **Execution** goes through the approval gate — no code path exists from intent to on-chain tx without a human `y`.
-- **MCP server** is the only thing that talks to the chain — Python never signs directly, which limits the blast radius of any bug in the Python layer.
+- **`InjectiveClient`** is the only thing that signs — the Python orchestration layer never sees the key bytes outside the client wrapper, which limits the blast radius of any bug elsewhere.
+
+## Network notes (this box)
+
+This Mac runs a global HTTP proxy at `127.0.0.1:5780` which intercepts httpx calls. To keep Injective grpc traffic out of the proxy, `ensure_no_proxy_for_injective()` sets `NO_PROXY` for `*.injective.network` and friends at startup. The CLI and scripts call it before connecting. If you see weird 502s from `localhost`-style URLs, that's the proxy — set `NO_PROXY` manually.

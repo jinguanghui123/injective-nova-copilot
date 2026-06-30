@@ -52,11 +52,11 @@ Five reference intents the copilot will support by demo day:
 
 ## Architecture decisions
 
-The original plan was to use `@injective/agent-sdk` for everything. Reading the actual SDK revealed it is **TypeScript-only** and is for **agent identity registration** (ERC-8004), *not* trading. So:
+Initial plan was to use `@injective/agent-sdk` for everything. Reading the actual SDK revealed it is **TypeScript-only** and is for **agent identity registration** (ERC-8004), *not* trading. The official Python SDK turned out to be real, fresh, and usable:
 
-- **Execution path**: official [`InjectiveLabs/mcp-server`](https://github.com/InjectiveLabs/mcp-server) — language-agnostic, callable from Python over the MCP protocol. This is the recommended path in Injective's own docs.
-- **Identity path** (optional, week 3): a one-shot TypeScript CLI call to register the copilot as an ERC-8004 agent. Output: on-chain agent ID + IPFS-pinned agent card.
-- **Python integration**: see [`docs/architecture.md`](docs/architecture.md). If a native Python SDK (`pyinjective`) is verified on PyPI during week 1, it can replace the MCP server hop with no change to the planner/intent layers.
+- **Execution path**: [`InjectiveLabs/sdk-python`](https://github.com/InjectiveLabs/sdk-python) — the native `injective-py` package, v1.16 released 2026-06-29. `pyinjective.async_client_v2.AsyncClient` + `MsgBroadcasterWithPk` sign and broadcast directly from Python over grpc. No subprocess, no extra hop.
+- **Identity path** (week 3): a one-shot TypeScript CLI call to `agent-sdk` to register the copilot as an ERC-8004 agent. Output: on-chain agent ID + IPFS-pinned agent card.
+- See [`docs/architecture.md`](docs/architecture.md) for the full decision table and component map.
 
 ## Roadmap
 
@@ -64,7 +64,7 @@ The original plan was to use `@injective/agent-sdk` for everything. Reading the 
 
 | Week | Focus | Deliverable |
 |---|---|---|
-| 1 (6/30–7/6) | Foundation | MCP server reachable from Python; first signed testnet tx; intent schema |
+| 1 (6/30–7/6) | Foundation | `injective-py` wired; first signed testnet tx; intent schema frozen |
 | 2 (7/7–7/13) | Planner | NL → structured intent; plan graph for 5 intents; simulator |
 | 3 (7/14–7/20) | Execution + Identity | Approval-gate CLI; executor; ERC-8004 registration |
 | 4 (7/21–7/27) | Polish + Demo | E2E flows; demo recording; docs |
@@ -74,13 +74,20 @@ The original plan was to use `@injective/agent-sdk` for everything. Reading the 
 ```bash
 git clone https://github.com/jinguanghui123/injective-nova-copilot.git
 cd injective-nova-copilot
-uv sync
+UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple uv sync   # mirror is faster on this box
 cp .env.example .env
-# edit .env — fill in wallet mnemonic, network, optional API keys
-uv run copilot --help
+
+# generate a testnet keypair, paste the private key into .env
+uv run python scripts/new_key.py
+
+# fund the address from the Injective testnet faucet, then:
+uv run copilot balance
+uv run copilot plan "send 0.001 INJ to inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
 ```
 
-Requirements: Python ≥ 3.11, [uv](https://docs.astral.sh/uv/), an Injective-compatible wallet mnemonic (testnet funds from the [Injective faucet](https://testnet) for development).
+Requirements: Python ≥ 3.11, [uv](https://docs.astral.sh/uv/), an Injective private key (testnet funds from the [Injective faucet](https://testnet.injective.network/) for development).
+
+On slow PyPI connections, prefix uv commands with `UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`.
 
 ## Status
 
