@@ -106,7 +106,7 @@ class InjectiveClient:
         if self._client is None:
             await self.connect()
         assert self._client is not None
-        result = await self._client.fetch_bank_balance(account_address=self.address, denom=denom)
+        result = await self._client.fetch_bank_balance(address=self.address, denom=denom)
         # pyinjective returns balance in atomic units; shape varies by version — handle both.
         if isinstance(result, dict):
             return int(result.get("amount", 0))
