@@ -21,11 +21,11 @@ This file is the source of truth for what "done" means each week.
 
 **Goal:** NL utterances for the five reference intents produce valid plans.
 
-- [ ] Prompt templates (Jinja2) for intent parsing.
-- [ ] LLM integration (Ollama local by default; optional cloud).
-- [ ] Deterministic planner per IntentType: swap, send, perp_open, perp_close, limit_order.
+- [x] Prompt template (`src/copilot/prompts.py`) for intent parsing.
+- [x] LLM integration (Ollama local by default via `src/copilot/llm.py`); `qwen2.5:latest` parses all 5 reference intents correctly.
+- [x] LLM-first parser with regex fallback (`agent.parse_intent`); 7 live regression tests in `tests/test_parser_live.py`.
+- [ ] Deterministic planner per IntentType: swap, send (✅), perp_open, perp_close, limit_order.
 - [ ] Simulator: dry-run each PlanStep against Injective RPC, populate `estimated_gas_inj` and `estimated_price_impact_bps`.
-- [ ] Unit tests for the planner (one fixture utterance per intent).
 
 **Exit criterion:** the five reference utterances produce five plans with non-null gas estimates.
 

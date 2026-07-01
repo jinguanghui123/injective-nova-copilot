@@ -12,6 +12,7 @@ from rich.console import Console
 
 from .agent import Copilot
 from .injective_client import INJ_ATOMIC, InjectiveClient, ensure_no_proxy_for_injective
+from .llm import OllamaClient
 
 app = typer.Typer(
     name="copilot",
@@ -21,8 +22,11 @@ app = typer.Typer(
 console = Console()
 
 
-def _load_client() -> InjectiveClient:
+def _load_env() -> None:
     load_dotenv(Path(".env"))
+
+
+def _make_client() -> InjectiveClient:
     pk = os.environ.get("INJECTIVE_PRIVATE_KEY")
     network = os.environ.get("INJECTIVE_NETWORK", "testnet")
     if not pk:
@@ -31,6 +35,13 @@ def _load_client() -> InjectiveClient:
         )
     ensure_no_proxy_for_injective()
     return InjectiveClient(private_key_hex=pk, network=network)
+
+
+def _make_llm() -> OllamaClient | None:
+    """Construct the LLM client. Returns None if the user disabled it."""
+    if os.environ.get("LLM_PROVIDER", "ollama").lower() == "none":
+        return None
+    return OllamaClient()
 
 
 @app.command()
@@ -46,10 +57,12 @@ def plan(
     intent: str = typer.Argument(..., help='Natural-language intent, e.g. "send 0.001 INJ to inj1..."'),
 ) -> None:
     """Plan (but do not execute) a transaction from a natural-language intent."""
-    client = _load_client()
-    copilot = Copilot(client=client)
+    _load_env()
 
     async def run() -> None:
+        client = _make_client()
+        llm = _make_llm()
+        copilot = Copilot(client=client, llm=llm)
         try:
             i = await copilot.parse_intent(intent)
             p = await copilot.plan(i)
@@ -64,9 +77,10 @@ def plan(
 @app.command()
 def balance() -> None:
     """Print the configured wallet's INJ balance."""
+    _load_env()
 
     async def run() -> None:
-        client = _load_client()
+        client = _make_client()
         console.print(f"{client!r}")
         try:
             atomic = await client.get_bank_balance("inj")
